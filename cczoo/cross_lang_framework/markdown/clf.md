@@ -1,5 +1,5 @@
 # **概述**
-本文介绍在Intel® SGX使能的平台，部署基于Gramine的跨语言框架（Cross languages framework）的技术架构和使用流程。。<br><br>
+本文介绍在Intel® SGX使能的平台，部署基于Gramine的跨语言框架（Cross languages framework）的技术架构和使用流程。<br><br>
 
 ## 背景信息
 Gramine 库是 C 语言模块，因此非 C 编程语言如 java 或 python 在使用 Gramine 时不容易进行 SGX 远程认证，同时也不容易在不信任节点（clf_client / 运行 SGX enclave 的地方）和信任之间传输密钥/数据节点（clf_server）。该框架旨在简化非 C 语言编程应用中的开发。
@@ -65,10 +65,9 @@ clf_client 运行在不信任的环境中，例如在 CSP 公共云中，因此�
     用户需要在执行`./gen_cert.sh -c`命令生成证书时在 Common Name 一项时填写部署server_clf的`clf_server_domain_name`
 
 
-3. 构建 clf_server 镜像和 clf-client-app 镜像
+3. 构建 clf_server 镜像和 clf-client-app 镜像<p></p>
    执⾏ `cd ../docker` 命令，切换⾄docker⽬录<p></p>
-   其中的clf-client-app为示例应用，用户可参考示例应用，自行编译到不同的应用中
-
+   其中的clf-client-app为示例应用，用户可参考示例应用，自行编译到不同的应用中<p></p>
    用户可通过以下两种途径获取镜像。
 
     i) 下载已构建的镜像
@@ -81,7 +80,7 @@ clf_client 运行在不信任的环境中，例如在 CSP 公共云中，因此�
     docker tag intelcczoo/clf:bytedance_clf-client-app clf-client-app:gramine1.3-ubuntu20.04
     ```
 
-    ii) 自行编译镜像
+    ii) 自行编译镜像<p></p>
     自行编译时请注意将PCCS访问地址配置为火山引擎提供的专有地址。
     ```shell
     ./build_clf_server_docker_image.sh
@@ -138,7 +137,7 @@ clf_client 运行在不信任的环境中，例如在 CSP 公共云中，因此�
     -s58a7129dc07ba462ca8317d578a3d7cb -p4433 -ccerts/server_signed_cert.crt -kcerts/    server_private_key.pem
     ```
 
-5. 部署 clf-client-app 端访问
+5. 部署 clf-client-app 端访问<p></p>
     执⾏ `cd <clf>/cross_lang_framework/docker` 命令，切换⾄docker⽬录
     ```shell
     ./start_clf_server_container.sh <clf_server_ip_addr> <clf_server_domain_name>
