@@ -66,8 +66,7 @@ clf_client 运行在不信任的环境中，例如在 CSP 公共云中，因此�
 3. 构建 clf_server 镜像和 clf-client-app 镜像<p></p>
    执⾏ `cd ../docker` 命令，切换⾄docker⽬录<p></p>
    其中的clf-client-app为示例应用，用户可参考示例应用，自行编译到不同的应用中<p></p>
-   用户可通过以下两种途径获取镜像。
-
+   用户可通过以下两种途径获取镜像。<p></p>
     i) 下载已构建的镜像
 
     ```shell
@@ -92,8 +91,7 @@ clf_client 运行在不信任的环境中，例如在 CSP 公共云中，因此�
     > mr_enclave:  34084a5b239a00236550f579e7b639e23cd729a09cf33d36778280a2082566a5<p></p>
     > mr_signer:   6fc83bdb60f1300639a0d407cb0e9ef143448e42479f6e4db947a4ae1aaca5d1<p></p>
 
-4. 部署clf-server服务
-
+4. 部署clf-server服务<p></p>
     执⾏命令，启动并进入clf-server容器。
     ```shell
     ./start_clf_server_container.sh <clf_server_ip_addr>
@@ -111,8 +109,6 @@ clf_client 运行在不信任的环境中，例如在 CSP 公共云中，因此�
     ```
     ii) 通过命令，自行定义参数值
     ```shell
-    ./start_clf_server_container.sh <hostname_ip_addr>
-
     RA_TLS_ALLOW_DEBUG_ENCLAVE_INSECURE=1 \
     RA_TLS_ALLOW_OUTDATED_TCB_INSECURE=1 \
     ./clf_server -S -E -d -v  -s -p -c -k
