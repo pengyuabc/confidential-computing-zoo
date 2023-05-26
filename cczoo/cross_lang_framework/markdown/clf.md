@@ -50,7 +50,7 @@ clf_client 运行在不信任的环境中，例如在 CSP 公共云中，因此�
     git clone https://github.com/gramineproject/gramine.git
     ```
 2. 进⼊tools⽬录，获取证书<p></p>
-    执⾏ `cd <clf>/cross_lang_framework/tools` 命令，切换⾄tools⽬录，使用脚本生成证书，证书将用于多方机密计算场景下的认证。
+    执⾏ `cd <clf>/cross_lang_framework/tools` 命令，切换⾄tools⽬录，使用脚本生成证书，证书将用于多方机密计算场景下的认证。<p></p>
     使用 -r 参数生成根证书（例如 ca_cert.crt），用于 clf_client。
     ```shell
     ./gen_cert.sh -r
