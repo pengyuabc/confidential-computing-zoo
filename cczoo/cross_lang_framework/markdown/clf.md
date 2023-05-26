@@ -19,7 +19,7 @@ SGX是Intel推出的机密计算技术，Gramine是主要的SGX libOS。用户�
 
 该框架为用户App提供了3个功能：
 1. 获取数据加解密密钥，可能在后续流程中使用；
-2. 从clf_server 获取各种数据资源。这些数据资源是 clf_server 的特定文件夹中的文件。该框架提供了Linux中文件读写等API。用户应用程序可以像读取本地文件一样轻松获取数据，指定偏移量和长度；
+2. 从clf_server 获取各种数据资源。这些数据资源是 clf_server 的特定文件夹中的文件。该框架提供了Linux中文件读写等API。用户应用程序可以迅速读取文件获取数据，并指定偏移量和字节长度；
 3. 把结果放到远程的clf_server 中，就像Linux 中写入本地文件一样。
 
 clf_client 运行在不信任的环境中，例如在 CSP 公共云中，因此使用 SGX 来确保机密计算。 clf_server 在密钥/数据/结果所在的用户信任环境中运行。 clf_client 和 clf_server 之间的密钥/数据/结果传输受 TLS 安全通道保护。
@@ -39,7 +39,6 @@ clf_client 运行在不信任的环境中，例如在 CSP 公共云中，因此�
 * ⑦ clf_server 将结果保存在文件系统中
 
 部署架构中，使用到的主要组件如下：
-* **LibOS**：Gramine是一款轻量级LibOS，基于Intel SGX加密技术，提供内核能力定制，可降低资源运行消耗，提供良好的ABI兼容性和可移植性，应用程序无需修改或者仅进行极小改动便能运行在SGX环境中，显著降低原生应用移植到SGX环境的成本。更多信息，请参见[Gramine](https://github.com/gramineproject/gramine)。
 * **Docker容器引擎**：为了方便部署推理服务，本实践将两个角色部署在同一台机器，通过Docker的命令方式运行在container中。
 
 
