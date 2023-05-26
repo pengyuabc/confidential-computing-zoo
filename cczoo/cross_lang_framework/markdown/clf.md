@@ -4,8 +4,6 @@
 ## 背景信息
 Gramine 库是 C 语言模块，因此非 C 编程语言如 java 或 python 在使用 Gramine 时不容易进行 SGX 远程认证，同时也不容易在不信任节点（clf_client / 运行 SGX enclave 的地方）和信任之间传输密钥/数据节点（clf_server）。该框架旨在简化非 C 语言编程应用中的开发。
 
-![图片](clf_opportunity.svg "技术架构")
-
 SGX是Intel推出的机密计算技术，Gramine是主要的SGX libOS。用户可以在 Gramine 上开发机密代码。问题在于，Gramine 是用 C 语言编写的，而 Gramine SDK 是 Linux 的“.so”库。因此，像 Java 这样的编程语言无法直接调用这些库来进行远程认证和传输数据。这使得这些非 c 开发人员难以使用 Gramine，并最终难以在他们的项目中使用 SGX。要调用 Gramine，他们需要开发一个语言翻译模块，如上图中的红框。clf可以解决多语言的开发问题。
 
 ## 技术架构
