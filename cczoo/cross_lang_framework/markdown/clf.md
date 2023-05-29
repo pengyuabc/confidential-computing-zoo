@@ -63,7 +63,7 @@ clf_client 运行在不信任的环境中，例如在 CSP 公共云中，因此�
 
 
 3. 构建 clf_server 镜像和 clf-client-app 镜像<p></p>
-   执⾏ `cd ../docker` 命令，切换⾄docker⽬录，其中的clf-client-app为示例应用，用户可参考示例应用，自行将clf编译到不同的应用中。<p></p>
+   执⾏ `cd ../docker` 命令，切换⾄docker⽬录，其中的clf-client-app为示例应用，用户可参考示例应用，自行将clf client lib编译到不同的应用中。<p></p>
    用户可通过以下两种途径获取镜像。<p></p>
     i) 下载已构建的镜像
 
