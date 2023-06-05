@@ -1,199 +1,139 @@
-
-## Prerequisites
-
-- Ubuntu 18.04. This solution should work on other Linux distributions as well, but for simplicity we provide the steps for Ubuntu 18.04 only.
-
-- Docker Engine. Docker Engine is an open source containerization technology for building and containerizing your applications. In this solution, Gramine, Fedlearner, gRPC will be built in Docker images. Please follow [this guide](https://docs.docker.com/engine/install/ubuntu/#install-using-the-convenience-script) to install Docker engine.
-
-- SGX capable platform. Intel SGX Driver and SDK/PSW. You need a machine that supports Intel SGX and FLC/DCAP. Please follow [this guide](https://download.01.org/intel-sgx/latest/linux-latest/docs/) to install the Intel SGX driver and SDK/PSW. One way to verify SGX enabling status in your machine is to run [QuoteGeneration](https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/master/QuoteGeneration) and [QuoteVerification](https://github.com/intel/SGXDataCenterAttestationPrimitives/blob/master/QuoteVerification) successfully.
-
-Here, we will demonstrate how to run leader and follower from two containers.
+# Attested Boot with encrypted Intel TDVM OS Image
 
 
 
-## Executing Fedlearner in SGX
+## Attested Boot for Confidential Computing Scenarios
 
-### 1. Download source code
+### Scenarios1:
+End-users deploy sensitive workloads/data in untrusted Private cloud infrastructure.
 
-```
-git clone -b fix_dev_sgx https://github.com/bytedance/fedlearner.git
-cd fedlearner
-git submodule init
-git submodule update
-```
+- As the restriction of network in private cloud environment, end-users need deploy the workloads/data in the guest OS image previously.
+- End-users are concerned that the cloud infrastructure could affect the workloads/data via controlling the guest OS image
 
-### 2. Build Docker image                                    
+### Scenarios2:
+End-users deploy customized guest OS image in untrusted Public cloud infrastructure.
 
-```
-img_tag=Your_defined_tag
-./sgx/build_dev_docker_image.sh ${img_tag}   
-```
+- End-users want to deploy self-customized guest OS image, which is not expected to be impacted/readable by CSP.
+- The customized OS image is pre-installed sensitive workloads/data and customers would be concerned about the security during the boot process.
 
-*Note:* `build_dev_docker_image.sh` provides parameter `proxy_server` to help you set your network proxy. It can be removed from this script if it is not needed.
+Based on above scenarios, this solution shows an E2E encrypted TDVM solution to protect the guest OS image with below functionalities:
+- Encrypt guest OS image (rootfs partition) with user self-defined encryption key by leveraging standard/opensource tools (LUKS/JinDisk) to protect confidential or personally identifiable information against any possible data breach during the OS booting process and OS image stored in cloud environment.
+- Provide the remote attestation capability to verify the identity of the platform environment (TDX) and OS image stack (Kernel, grub).
+- Protect the secret key in transition with RA-TLS.
 
-You will get the built image:
+## Solution Ingredients
 
-```
-REPOSITORY             TAG         IMAGE ID            CREATED           SIZE
-fedlearner-sgx-dev     latest      8c3c7a05f973        45 hours ago      15.2GB
-```
+- Processor that supports Intel® Trust Domain Extensions (Intel® TDX). For more TDX official papers, please refer to [Intel TDX White Papers](https://cczoo.readthedocs.io/en/latest/TEE/TDX/inteltdx.html#intel-tdx-white-papers-and-specifications-common).
+- TDX-enabled platform with TDX-aware Linux stack. Please refer to [Linux Stack for Intel TDX ](https://cczoo.readthedocs.io/en/latest/TEE/TDX/tdxstack.html).
+- TDVM guest OS image. This solution will create a new encrypted image based on this TDVM guest OS image. The reference TDVM guest OS images (Ubuntu22.04 and RHEL8.6) are provided here for users.
+- Components/Services for TDX remote attestation. The DCAP and PCCS should be well installed and configured to support remote attestation infrastructure flow. Please refer to [DCAP](https://download.01.org/intel-sgx/latest/dcap-latest/linux/) for more configuration detials.
+- Encryption Tools - LUKS and JinDisk. In this solution, it provides two methods to encrypt the TDVM OS image. In this paper we show the case with LUKS.
+  - [LUKS](https://gitlab.com/cryptsetup/cryptsetup) (Linux Unified Key Setup). LUKS is the standard for Linux disk encryption. By providing a standardized on-disk format, it not only facilitate compatibility among distributions, but also enables secure management of multiple user passwords. LUKS stores all necessary setup information in the partition header, which enables users to transport or migrate data seamlessly.
+  - [JinDisk](https://github.com/jinzhao-dev/jinzhao-disk) is developed by AntGroup. Jinzhao Disk (or JinDisk) is a log-structured secure block device for TEEs, which has the following key features:
+    - Transparent protection. As a block device, JinDisk can transparently protect any file system (e.g., Ext4) that is stacked upon it and runs inside a TEE from a strong adversary outside the TEE.
+    - Strong security. JinDisk promises six security properties: confidentiality, integrity, freshness, consistency, atomicity, and anonymity. For more information, see the security goal below.
+    - High performance. Thanks to its unique log-structured design, JinDisk can deliver an excellent I/O performance that is close to the theoretically optimal level.
 
-### 3. Start Container
+## Solution Introduction
 
-In terminal 1, start container to run leader:
+This solution demonstrates how to boot a encrypted TDVM image, which can be encrypted by LUKS or JinDisk. During the boot process, a customized process of remote attestation is called to retrieve the key that can unlock the encrypted Rootfs partition in the encrypted TDVM image. In this solution, we will use LUKS as the encryption tool. For JinDisk, please refer to [encrypted-vm-image
+ based on JinDisk](https://github.com/StanPlatinum/jinzhao-disk/edit/dev_tdx-demo/demos/encrypted-vm-image/README.md) for more details.
 
-```
-docker run -it \
-    --name=fedlearner_leader \
-    --restart=unless-stopped \
-    -p 50051:50051 \
-    --device=/dev/sgx_enclave:/dev/sgx/enclave \
-    --device=/dev/sgx_provision:/dev/sgx/provision \
-    fedlearner-sgx-dev:latest  \
-    bash
-```
+### Workflow
 
-In terminal 2, start container to run follower:
+the high level workflow of this solution can be descripted as the following steps::
+- Step1: Create a encrypted TDVM image from a base image. Specifically, a new TDVM image that includes an EFI partition, a boot partition, and the most crucial one - a root partition is created. During the creating new encrypted image, components (initramfs hooks, RA scripts, and other software dependencies) will be included in the new image to enable the subsequent guest VM startup.
+- Step2: Steup remote attestation service. During the  encrypted image boot, it will send remote attestation to fetch the key to decrypt the encrypted Rootfs partition. The remote attestation service will wait for the request from the client. It will firstly verify the TDX Quote parsed from the communication  to guarantee the TDX environment is trusted, and then compare the requested secretID with the ID stored in the local is matched. The key can be sent back to the client after both checks pass.
+- Step3: Launch the encrypted TDVM OS image via TDX-supported hypervisor (QEMU/KVM) in a TDX host platform. The hooks inside the initramfs request the attestation report and sent it to the attestation server when the kernel is booted. If the verification is passed, a trusted communication channel can be built and the key to decrypt the root partition is retrieved by the TDVM. The initramfs hook(s) then decrypts the TDVM's root filesystem with the key.
 
-```
-docker run -it \
-    --name=fedlearner_follwer \
-    --restart=unless-stopped \
-    -p 50052:50052 \
-    --device=/dev/sgx_enclave:/dev/sgx/enclave \
-    --device=/dev/sgx_provision:/dev/sgx/provision \
-    fedlearner-sgx-dev:latest  \
-    bash
-```
+![](./encrypted_img.png)
 
-#### 3.1 Configure PCCS
+### Environment setup
 
-- If you are using public cloud instance, please replace the PCCS url in `/etc/sgx_default_qcnl.conf` with the new pccs url provided by the cloud.
+Firstly, it is imperative to have a TDX host system in place. The TDX host system requires TDX-enabled CPU, BIOS configuration to enable TDX in firmware, and the installation of essential software including QEMU, OVMF, and a patched Linux kernel.
 
-  ```
-  Old: PCCS_URL=https://pccs.service.com:8081/sgx/certification/v3/ 
-  New: PCCS_URL=https://public_cloud_pccs_url
-  ```
+Please check [Intel TDX's Linux Stack](https://cczoo.readthedocs.io/en/latest/TEE/TDX/tdxstack.html) to find more instructions to build TDX Linux stack.
 
-- If you are using your own machine, please make sure, the PCCS service is running successfully in your host with command `systemctl status pccs`. And add your host IP address in `/etc/hosts` under container. For example:
+### Preparing the reference image
 
-  ```
-  cat /etc/hosts
-  XXX.XXX.XXX.XXX pccs.service.com   #XXX.XXX.XXX.XXX is the host IP
-  ```
+A encrypted TDVM image is created from a original TDVM image as reference. Anyone can prepare their own customized image via above step to build one TDVM guest image. We also prepare a original TDVM image which can be downloaded via the following commands.
 
-#### 3.2 Start aesm service
-
-Execute below script in both leader and follower container:
-
-```
-/root/start_aesm_service.sh
+```bash
+mkdir -p /home/tdvm && cd /home/tdvm
+docker pull intelcczoo/encrypted-tdvm-img:ubuntu
+docker run -d --name "encrypted-image-demo" intelcczoo/encrypted-tdvm-img:ubuntu
+docker cp encrypted-image-demo:/home/td-guest-ubuntu-22.04-img.zip .
+unzip td-guest-ubuntu-22.04-img.zip && rm td-guest-ubuntu-22.04-img.zip
 ```
 
-#### 4. Prepare data
+`Note:` If you choose to use self-built tdvm image as original reference image, please install the packages in the reference image which will provide dependent libraries for remote attestation client:
 
-Generate data in both leader and follower container:
-
+```bash
+sudo apt install -y libsgx-dcap-quote-verify
+sudo apt install -y libsgx-dcap-quote-verify-dev
+sudo apt install -y libsgx-ae-qve
 ```
-cd /gramine/CI-Examples/wide_n_deep
-./test-ps-sgx.sh data
-```
+### Creating the new LUKS-encrypted TDVM image
 
-#### 5. Compile applications
+Once the reference image is ready, one can create the new LUKS-encrypted on TDX-enabled platform.
 
-Compile applications in both leader and follower container:
+Download the source code.
 
-```
-cd /gramine/CI-Examples/wide_n_deep
-./test-ps-sgx.sh make
-```
-
-Please find `mr_enclave`,`mr_signer` from the print log as below:
-
-```
-+ make
-+ grep 'mr_enclave\|mr_signer\|isv_prod_id\|isv_svn'
-    isv_prod_id: 0
-    isv_svn:     0
-    mr_enclave:  bda462c6483a15f18c92bbfd0acbb61b9702344202fcc6ceed194af00a00fc02
-    mr_signer:   dbf7a340bbed6c18345c6d202723364765d261fdb04e960deb4ca894d4274839
-    isv_prod_id: 0
-    isv_svn:     0
+```bash
+cd /home/tdvm
+git clone https://github.com/intel/confidential-computing-zoo.git
+cd /home/tdvm/confidential-computing-zoo/cczoo/tdx-encrypted-tdvm-image
+cp /home/tdvm/td-guest-ubuntu-22.04.qcow2 .
 ```
 
-Then, update the leader's `dynamic_config.json` under current folder with follower's  `mr_enclave`,`mr_signer`. Also, update follower's  `dynamic_config.json` with leader's `mr_enclave`,`mr_signer`.
+*Note:*
+Please configure the `IP address` of the machine running `ra-server` in the file `initramf-hooks/ra-client/etc/hosts`.
 
-```
-dynamic_config.json:
-{
-......
-  "sgx_mrs": [
-    {
-      "mr_enclave": "",
-      "mr_signer": "",
-      "isv_prod_id": "0",
-      "isv_svn": "0"
-    }
-  ],
-......
-}
+Create the encrypted image.
 
+```bash
+./create-encrypted-td-img.sh td-guest-ubuntu-22.04.qcow2 encrypted-tdvm-img.qcow2 35G
 ```
 
-#### 6. Config leader and follower's IP
+*Note:*
+1. The initial user and password combination in this demo for the TDVM image is "root/123456".
+2. The encryption key set in the demo is TDVM@tdvm123. which is stored in `ra-server/secret.json` file.
 
-In leader's  `test-ps-sgx.sh`, for `--peer-addr` , please replace `localhost` with `follower_contianer_ip`
+Upon successful encryption of the image, a message - "Successfully created  xxx !" - will be displayed.
 
-```
-elif [ "$ROLE" == "leader" ]; then
-    make_custom_env
-    rm -rf model/leader
-    ......
-    taskset -c 4-7 stdbuf -o0 gramine-sgx python -u leader.py \
-    --local-addr=localhost:50051   \
-    --peer-addr=follower_contianer_ip:50052 
-```
+### Launching the key service
 
-In follower's `test-ps-sgx.sh`, for `--peer-addr` , please replace `localhost` with `leader_contianer_ip`
+Assuming the TDX Linux stack is already installed and configured correctly to support TDX remote attestation, you can launch the key service using the following command.
 
-```
-elif [ "$ROLE" == "follower" ]; then
-    make_custom_env
-    rm -rf model/follower
-    ......
-    taskset -c 12-15 stdbuf -o0 gramine-sgx python -u follower.py \
-    --local-addr=localhost:50052   \
-    --peer-addr=leader_container_ip:50051      
+```bash
+cd cd /home/tdvm/confidential-computing-zoo/cczoo/tdx-encrypted-tdvm-image/ra-server
+unzip ra-server.zip
+http_proxy= https_proxy= HTTP_PROXY= HTTPS_PROXY= GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=./roots.pem ./ra-server -host=0.0.0.0:50051 -cfg=dynamic_config.json -s=secret.json
 ```
 
-*Note:* Get the container ip under your host: 
+*Note:*
+1. The port of the remote attestation service is 50051.
+2. The secret key should be configured in the `secret.json` file, and can be reset by the user as necessary.
+3. The "APP_ID=luksKey" in file `getting_key.sh` should match the name stored in `secret.json` file.
 
-```
-docker inspect --format '{{ .NetworkSettings.IPAddress }}' container_id
-```
+Please refer to the source code of `ra-server` [here](https://github.com/intel/confidential-computing-zoo/tree/main/cczoo/tdx-encrypted-vfs/get_secret) for more details about the key service.
 
-#### 7.Run the distributing training
+### Launching and unlocking the encrypted TDVM image
 
-Under leader container:
+One can use the [start-tdvm.sh](./start-tdvm.sh) script to launch a VM and verify whether the image is created successfully.
 
-```
-cd /gramine/CI-Examples/wide_n_deep
-./test-ps-sgx.sh leader
-```
-
-Under follower container:
-
-```
-cd /gramine/CI-Examples/wide_n_deep
-./test-ps-sgx.sh follower
+```bash
+./start-tdvm.sh \
+    -i encrypted-tdvm-img.qcow2 \
+    -b grub
 ```
 
-Finally, the model file will be placed at 
+Note that this command assumes that a QEMU executable is located at `/usr/libexec/qemu-kvm` if the TDX is enabled and the TDX Linux stack is installed on the host.
+Utilize the command line options `-c`, `-f`, and `-p` to specify the count of virtual CPU cores assigned, the port for SSH, and the port Telnet, respectively.
 
-```
-./model/leader/id/save_model.pd
-```
+During the boot sequence, the `getting_key.sh` script within the initramfs will endeavor to establish a connection with the `ra-server`, which will subsequently receive the attestation request and proceed to authenticate the TD report. Upon successful authentication, the `opening_disk.sh` script will proceed to decrypt the encrypted rootfs utilizing the obtained key.
 
-```
-./model/follower/id/save_model.pd
-```
+
+
+`References:`
+ - [Intel TDX Documents](https://cczoo.readthedocs.io/en/latest/TEE/TDX/inteltdx.html) for more details to deploy and bring up a TDVM.
